@@ -1,62 +1,106 @@
 import unittest
 from finance import main
+from finance import wallet
+from finance.wallet import Wallet
+from finance.plan import Plan
+from finance.stock import Stock
+
+
+class TestWalletManagement(unittest.TestCase):
+
+    def setUp(self):
+        self.wallet = Wallet({'stock1': Stock('stock1', 3, 150)})
+        self.stock2 = Stock('stock2', 3, 100)
+
+    def test_add_stock(self):
+        self.assertTrue(self.wallet.add_stock(self.stock2))
+        self.assertEqual(self.wallet.total_shares_value, 750)
+        self.assertFalse(self.wallet.add_stock(self.stock2))
+        self.assertIsNotNone(self.wallet.single_stock(self.stock2.name))
+
+    def test_remove_stock(self):
+        stock1 = self.wallet.single_stock('stock1')
+        self.assertTrue(self.wallet.remove_stock(stock1.name))
+        self.assertIsNone(self.wallet.single_stock(stock1.name))
+        self.assertEqual(self.wallet.total_shares_value, 0)
+        self.assertFalse(self.wallet.remove_stock('abc'))
+        self.assertFalse(self.wallet.remove_stock(''))
+        self.assertFalse(self.wallet.remove_stock(None))
+
+    def test_show_stocks(self):
+        stock3 = Stock('stock1', 3, 150)
+        stock1 = self.wallet.single_stock('stock1')
+        self.assertIn(stock1, self.wallet.all_stocks)
+        self.assertNotIn(stock3, self.wallet.all_stocks)
+        self.assertEqual(self.wallet.total_shares_value, 450)
+
+        self.wallet.add_stock(self.stock2)
+        self.assertIn(self.stock2, self.wallet.all_stocks)
+        self.assertEqual(self.wallet.total_shares_value, 750)
+
+        self.wallet.remove_stock('stock1')
+        self.assertNotIn(stock1, self.wallet.all_stocks)
+        self.assertEqual(self.wallet.total_shares_value, 300)
+
+    def test_add_balance(self):
+        self.assertEqual(self.wallet.balance, 0)
+        self.assertTrue(self.wallet.add_balance(200))
+        self.assertEqual(self.wallet.balance, 200)
+        self.assertFalse(self.wallet.add_balance(-1200))
+        self.assertEqual(self.wallet.balance, 200)
+        self.assertFalse(self.wallet.add_balance(-200))
+        self.assertEqual(self.wallet.balance, 200)
+        self.assertFalse(self.wallet.add_balance(0))
+
+    def test_remove_balance(self):
+        self.assertEqual(self.wallet.balance, 0)
+        self.assertFalse(self.wallet.remove_balance(200))
+        self.assertEqual(self.wallet.balance, 0)
+        self.assertTrue(self.wallet.add_balance(200))
+        self.assertFalse(self.wallet.remove_balance(-1200))
+        self.assertEqual(self.wallet.balance, 200)
+        self.assertFalse(self.wallet.remove_balance(-200))
+        self.assertEqual(self.wallet.balance, 200)
+        self.assertTrue(self.wallet.remove_balance(200))
+        self.assertEqual(self.wallet.balance, 0)
+        self.assertFalse(self.wallet.remove_balance(0))
 
 
 class TestStockManagement(unittest.TestCase):
 
     def setUp(self):
-        self.wallet = {'stock1': {'value': 150, 'number': 3}, 'balance': 0}
-        self.stock2 = {'name': 'stock2', 'value': 100, 'number': 3}
+        self.wallet = Wallet({'stock1': Stock('stock1', 5, 50)})
+        self.stock2 = Stock('stock2', 3, 100)
 
-    def test_total_stock_value(self):
-        self.assertEqual(main.total(self.wallet), 450)
+    def test_stock_value(self):
+        self.assertEqual(self.wallet.stock_shares_value('stock1'), 250)
 
-    def test_add_stock(self):
-        main.add(self.wallet, self.stock2)
-        self.assertEqual(self.wallet['stock2'], {'value': 100, 'number': 3})
-        self.assertEqual(main.total(self.wallet), 750)
+    def test_add_share(self):
+        self.assertTrue(self.wallet.add_stock_share('stock1', 5))
+        self.assertEqual(self.wallet.stock_shares_value('stock1'), 500)
+        self.assertFalse(self.wallet.add_stock_share('stock1', -5))
+        self.assertFalse(self.wallet.add_stock_share('stock1', '-5'))
+        self.assertFalse(self.wallet.add_stock_share('stock1', 0))
+        self.assertEqual(self.wallet.stock_shares_value('stock1'), 500)
+        self.assertFalse(self.wallet.add_stock_share('stock2', 5))
+        self.assertFalse(self.wallet.add_stock_share('stock2', 0))
+        self.assertFalse(self.wallet.stock_shares_value('stock2'))
 
-    def test_remove_stock(self):
-        stock = 'stock1'
-        main.remove(self.wallet, stock)
-        self.assertNotIn(stock, self.wallet)
-        self.assertEqual(main.total(self.wallet), 0)
+    def test_remove_share(self):
+        self.assertTrue(self.wallet.remove_stock_share('stock1', 5))
+        self.assertEqual(self.wallet.stock_shares_value('stock1'), 0)
+        self.assertFalse(self.wallet.remove_stock_share('stock1', -5))
+        self.assertFalse(self.wallet.remove_stock_share('stock1', '-5'))
+        self.assertFalse(self.wallet.remove_stock_share('stock1', 0))
+        self.assertEqual(self.wallet.stock_shares_value('stock1'), 0)
+        self.assertFalse(self.wallet.remove_stock_share('stock2', 5))
+        self.assertFalse(self.wallet.remove_stock_share('stock2', 0))
+        self.assertFalse(self.wallet.stock_shares_value('stock2'))
 
-    def test_show_stocks(self):
-        stocks_string = main.show_stocks(self.wallet)
-        self.assertIn('stock1', stocks_string)
-        self.assertIn('value', stocks_string)
-        self.assertIn('number', stocks_string)
 
-        main.add(self.wallet, self.stock2)
-        stocks_string = main.show_stocks(self.wallet)
-        self.assertIn('stock2', stocks_string, f'\n{stocks_string}')
-        self.assertIn('Total Wallet: 750', stocks_string, f'\n{stocks_string}')
-        self.assertIn('Balance', stocks_string, f'\n{stocks_string}')
-
-    def test_get_balance(self):
-        balance = main.get_balance(self.wallet)
-        self.assertEqual(balance, self.wallet['balance'])
-
-    def test_add_balance(self):
-        balance = main.add_balance(self.wallet, 0)
-        self.assertEqual(balance, self.wallet['balance'])
-
-        balance = main.add_balance(self.wallet, 350)
-        self.assertNotEqual(balance, 0)
-        self.assertEqual(balance, self.wallet['balance'])
-
-        balance = main.add_balance(self.wallet, 500)
-        self.assertEqual(balance, self.wallet['balance'])
-
-        main.add_balance(self.wallet, -1000)
-        self.assertEqual(850, self.wallet['balance'])
-
-        main.add_balance(self.wallet, '100')
-        self.assertEqual(850, self.wallet['balance'])
-
-        main.add_balance(self.wallet, 'abc')
-        self.assertEqual(850, self.wallet['balance'])
+class TestPlanManagement(unittest.TestCase):
+    def setUp(self):
+        pass
 
 
 if __name__ == '__main__':

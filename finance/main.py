@@ -1,6 +1,9 @@
+from .wallet import Wallet
+from .plan import Plan
+
+
 def add(wallet, stock):
-    stock_name = stock.pop('name')
-    wallet[stock_name] = stock
+    wallet[stock.name] = stock
 
 
 def remove(wallet, stock):
@@ -35,6 +38,16 @@ def add_balance(wallet, value):
     elif value < 0:
         return balance
     wallet['balance'] += value
+    return wallet['balance']
+
+
+def remove_balance(wallet, value):
+    balance = wallet['balance']
+    if not isinstance(value, int):
+        return balance
+    elif value < 0 or value > balance:
+        return balance
+    wallet['balance'] -= value
     return wallet['balance']
 
 

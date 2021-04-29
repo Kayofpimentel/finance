@@ -1,4 +1,4 @@
-from .stock import Stock
+from finance.stock import Stock
 from functools import reduce
 
 

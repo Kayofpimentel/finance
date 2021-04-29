@@ -1,9 +1,11 @@
 import unittest
-from finance import main
-from finance import wallet
-from finance.wallet import Wallet
+from functools import reduce
+
+from finance import main, owner, plan
+from finance.owner import Owner
 from finance.plan import Plan
 from finance.stock import Stock
+from finance.wallet import Wallet
 
 
 class TestWalletManagement(unittest.TestCase):
@@ -99,8 +101,56 @@ class TestStockManagement(unittest.TestCase):
 
 
 class TestPlanManagement(unittest.TestCase):
+
     def setUp(self):
-        pass
+
+        self.owner = Owner('User1')
+        self.plan = Plan(self.owner)
+        self.stock2 = Stock('stock2', 3, 100)
+        self.wallet = Wallet({'stock1': Stock('stock1', 3, 150),
+                             'stock2': self.stock2,
+                              'stock3': Stock('stock3', 10, 12)},
+                             1000)
+        self.goals = {'REIT': {'stocks': [self.stock2], 'apportion': .5},
+                      'B&H': {'stocks':
+                              [self.wallet.single_stock('stock1')], 'apportion': .5}}
+        self.plan.create_plan({'wallet1': self.wallet}, self.goals)
+
+    def test_create_plan(self):
+        self.assertEqual(self.plan.number_of_goals(), 2)
+        total_apportion = [goal[1]
+                           for goal
+                           in self.plan.goals]
+        total_apportion = reduce(
+            lambda total, apportion: total+apportion,
+            total_apportion, 0)
+        self.assertEqual(total_apportion, 1)
+
+    def test_add_goal(self):
+        self.plan.add_goal(('Cash', [self.wallet.single_stock('stock3')]),
+                           (.2, .4))
+        self.assertEqual(self.plan.number_of_goals(), 3)
+        total_apportion = reduce(lambda total_apportion, goal_apportion:
+                                 total_apportion+goal_apportion,
+                                 ([goal_apportion[1] for goal_apportion in self.plan.goals]), 0)
+        self.assertEqual(total_apportion, 1)
+        self.assertAlmostEqual(self.plan.goal_apportion('REIT'), .2)
+        self.assertAlmostEqual(self.plan.goal_apportion('B&H'), .4)
+        self.assertAlmostEqual(self.plan.goal_apportion('Cash'), .4)
+        self.assertAlmostEqual(self.plan.goal_apportion('Gamble'), 0)
+
+    def test_remove_goal(self):
+        self.assertTrue(self.plan.remove_goal('REIT'))
+        self.assertEqual(self.plan.number_of_goals(), 1)
+        total_apportion = reduce(lambda total_apportion, goal_apportion:
+                                 total_apportion+goal_apportion,
+                                 ([goal_apportion[1] for goal_apportion in self.plan.goals]), 0)
+        self.assertEqual(total_apportion, 1)
+        self.assertAlmostEqual(self.plan.goal_apportion('REIT'), 0)
+        self.assertAlmostEqual(self.plan.goal_apportion('B&H'), 1)
+        self.assertAlmostEqual(self.plan.goal_apportion('Cash'), 0)
+        self.assertTrue(self.plan.remove_goal('B&H'))
+        self.assertAlmostEqual(self.plan.goal_apportion('B&H'), 0)
 
 
 if __name__ == '__main__':

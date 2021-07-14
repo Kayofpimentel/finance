@@ -1,22 +1,26 @@
 import unittest
 from functools import reduce
+from finance import stock
+from finance import wallet
 
-from finance import main, owner, plan
 from finance.owner import Owner
 from finance.plan import Plan
 from finance.stock import Stock
 from finance.wallet import Wallet
+from finance.goal import Goal
 
 
 class TestWalletManagement(unittest.TestCase):
 
     def setUp(self):
-        self.wallet = Wallet({'stock1': Stock('stock1', 3, 150)})
+        self.wallet = Wallet(name='wallet1', stocks={Stock(
+            'stock1', 3, 150)}, balance=0)
         self.stock2 = Stock('stock2', 3, 100)
 
     def test_add_stock(self):
         self.assertTrue(self.wallet.add_stock(self.stock2))
         self.assertEqual(self.wallet.total_shares_value, 750)
+        self.assertIsNotNone(self.wallet.single_stock(self.stock2.name))
         self.assertFalse(self.wallet.add_stock(self.stock2))
         self.assertIsNotNone(self.wallet.single_stock(self.stock2.name))
 
@@ -32,16 +36,16 @@ class TestWalletManagement(unittest.TestCase):
     def test_show_stocks(self):
         stock3 = Stock('stock1', 3, 150)
         stock1 = self.wallet.single_stock('stock1')
-        self.assertIn(stock1, self.wallet.all_stocks)
-        self.assertNotIn(stock3, self.wallet.all_stocks)
+        self.assertIn(stock1, self.wallet.stocks)
+        self.assertNotIn(stock3, self.wallet.stocks)
         self.assertEqual(self.wallet.total_shares_value, 450)
 
         self.wallet.add_stock(self.stock2)
-        self.assertIn(self.stock2, self.wallet.all_stocks)
+        self.assertIn(self.stock2, self.wallet.stocks)
         self.assertEqual(self.wallet.total_shares_value, 750)
 
         self.wallet.remove_stock('stock1')
-        self.assertNotIn(stock1, self.wallet.all_stocks)
+        self.assertNotIn(stock1, self.wallet.stocks)
         self.assertEqual(self.wallet.total_shares_value, 300)
 
     def test_add_balance(self):
@@ -71,7 +75,8 @@ class TestWalletManagement(unittest.TestCase):
 class TestStockManagement(unittest.TestCase):
 
     def setUp(self):
-        self.wallet = Wallet({'stock1': Stock('stock1', 5, 50)})
+        self.wallet = Wallet(name='wallet1', stocks={Stock(
+            'stock1', 5, 50)}, balance=0)
         self.stock2 = Stock('stock2', 3, 100)
 
     def test_stock_value(self):
@@ -104,53 +109,82 @@ class TestPlanManagement(unittest.TestCase):
 
     def setUp(self):
 
-        self.owner = Owner('User1')
-        self.plan = Plan(self.owner)
-        self.stock2 = Stock('stock2', 3, 100)
-        self.wallet = Wallet({'stock1': Stock('stock1', 3, 150),
-                             'stock2': self.stock2,
-                              'stock3': Stock('stock3', 10, 12)},
-                             1000)
-        self.goals = {'REIT': {'stocks': [self.stock2], 'apportion': .5},
-                      'B&H': {'stocks':
-                              [self.wallet.single_stock('stock1')], 'apportion': .5}}
-        self.plan.create_plan({'wallet1': self.wallet}, self.goals)
+        self.owner = Owner(name='User1')
+        self.stock1 = Stock(name='stock1', share=3, value=150)
+        self.stock2 = Stock(name='stock2', share=3, value=100)
+        self.stock3 = Stock(name='stock3', share=10, value=12)
+        self.stock4 = Stock(name='stock4', share=5, value=150)
+        self.wallet1 = Wallet(name='wallet1',
+                              stocks={self.stock1, self.stock2, self.stock3}, balance=1000)
+        self.wallet2 = Wallet(name='wallet2', stocks={
+                              self.stock4}, balance=0)
+        self.goal1 = Goal(name='B&H',
+                          stocks={self.stock1},
+                          apportion=0.6)
+        self.goal2 = Goal(name='REIT',
+                          stocks={self.stock2},
+                          apportion=0.4)
+        self.plan = Plan(owner=self.owner,
+                         wallets={self.wallet1},
+                         goals={self.goal1, self.goal2})
 
     def test_create_plan(self):
         self.assertEqual(self.plan.number_of_goals(), 2)
-        total_apportion = [goal[1]
-                           for goal
-                           in self.plan.goals]
-        total_apportion = reduce(
-            lambda total, apportion: total+apportion,
-            total_apportion, 0)
-        self.assertEqual(total_apportion, 1)
+        self.assertEqual(self.plan.plan_value, 750)
+        self.assertEqual(self.plan.total_apportion, 1)
 
     def test_add_goal(self):
-        self.plan.add_goal(('Cash', [self.wallet.single_stock('stock3')]),
-                           (.2, .4))
+        goal3 = Goal(name='Unicorn', stocks={
+                     self.wallet1.single_stock('stock3')}, apportion=0.2)
+        self.assertTrue(self.plan.add_goal(goal3))
         self.assertEqual(self.plan.number_of_goals(), 3)
-        total_apportion = reduce(lambda total_apportion, goal_apportion:
-                                 total_apportion+goal_apportion,
-                                 ([goal_apportion[1] for goal_apportion in self.plan.goals]), 0)
-        self.assertEqual(total_apportion, 1)
-        self.assertAlmostEqual(self.plan.goal_apportion('REIT'), .2)
-        self.assertAlmostEqual(self.plan.goal_apportion('B&H'), .4)
-        self.assertAlmostEqual(self.plan.goal_apportion('Cash'), .4)
+        self.assertEqual(self.plan.plan_value, 870)
+        self.assertNotEqual(self.plan.total_apportion, 1)
+        self.assertAlmostEqual(self.plan.goal_apportion('REIT'), 0.4)
+        self.assertAlmostEqual(self.plan.goal_apportion('B&H'), 0.6)
+        self.assertAlmostEqual(self.plan.goal_apportion('Unicorn'), 0.2)
         self.assertAlmostEqual(self.plan.goal_apportion('Gamble'), 0)
 
     def test_remove_goal(self):
         self.assertTrue(self.plan.remove_goal('REIT'))
         self.assertEqual(self.plan.number_of_goals(), 1)
-        total_apportion = reduce(lambda total_apportion, goal_apportion:
-                                 total_apportion+goal_apportion,
-                                 ([goal_apportion[1] for goal_apportion in self.plan.goals]), 0)
-        self.assertEqual(total_apportion, 1)
+        self.assertEqual(self.plan.plan_value, 450)
+        self.assertNotEqual(self.plan.total_apportion, 1)
         self.assertAlmostEqual(self.plan.goal_apportion('REIT'), 0)
-        self.assertAlmostEqual(self.plan.goal_apportion('B&H'), 1)
+        self.assertNotEqual(self.plan.goal_apportion('B&H'), 1)
         self.assertAlmostEqual(self.plan.goal_apportion('Cash'), 0)
         self.assertTrue(self.plan.remove_goal('B&H'))
         self.assertAlmostEqual(self.plan.goal_apportion('B&H'), 0)
+
+    def test_add_stock_goal(self):
+        self.assertTrue(self.plan.add_stock_goal(
+            goal_name='REIT', wallet_name='wallet1', stock_name='stock3'))
+        self.assertEqual(self.plan.goal_value('REIT'), 420)
+        self.assertEqual(self.plan.plan_value, 870)
+        self.assertFalse(self.plan.add_stock_goal(
+            goal_name='REIT', wallet_name='wallet1', stock_name='stock4'))
+        self.assertFalse(self.plan.add_stock_goal(
+            goal_name='ZERO', wallet_name='wallet1', stock_name='stock3'))
+        self.assertFalse(self.plan.add_stock_goal(
+            goal_name='ZERO', wallet_name='wallet1', stock_name='stock3'))
+        self.assertFalse(self.plan.add_stock_goal(
+            goal_name='REIT', wallet_name='wallet1', stock_name='stock3'))
+
+    def test_remove_stock_goal(self):
+        self.assertTrue(self.plan.remove_stock_goal('stock2', 'REIT'))
+        self.assertEqual(self.plan.goal_value('REIT'), 0)
+        self.assertEqual(self.plan.plan_value, 450)
+        self.assertFalse(self.plan.remove_stock_goal('stock4', 'REIT'))
+        self.assertFalse(self.plan.remove_stock_goal('stock3', 'ZERO'))
+        self.assertFalse(self.plan.remove_stock_goal('stock4', 'ZERO'))
+        self.assertFalse(self.plan.remove_stock_goal('stock2', 'REIT'))
+        self.assertTrue(self.plan.add_stock_goal(
+            wallet_name='wallet1', stock_name='stock3', goal_name='REIT'))
+        self.assertTrue(self.plan.remove_stock_goal('stock3', 'REIT'))
+
+    def test_add_wallet_plan(self):
+        self.assertTrue(self.plan.add_wallet(self.wallet2))
+        self.assertFalse(self.plan.add_wallet(self.wallet1))
 
 
 if __name__ == '__main__':

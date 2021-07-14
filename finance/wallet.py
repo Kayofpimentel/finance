@@ -4,22 +4,26 @@ from functools import reduce
 
 class Wallet:
 
-    def __init__(self, stocks={}, balance=0) -> None:
+    def __init__(self, name=str, stocks=set, balance=int) -> None:
+        self.__name = name
         self.__stocks = stocks
         self.__balance = balance
+
+    @property
+    def name(self):
+        return self.__name
 
     @property
     def balance(self):
         return self.__balance
 
     @property
-    def all_stocks(self) -> tuple:
-        return tuple(self.__stocks.values())
+    def stocks(self) -> set:
+        return self.__stocks
 
     @property
     def total_shares_value(self) -> int:
-        stocks = tuple(self.__stocks.values())
-        stock_values = [stock.total_value for stock in stocks]
+        stock_values = [stock.total_value for stock in self.__stocks]
         total_value = reduce(
             lambda total_value, stock_value: total_value + stock_value, stock_values, 0)
         return total_value
@@ -41,19 +45,23 @@ class Wallet:
         return True
 
     def add_stock(self, stock=Stock) -> bool:
-        if self.__stocks.get(stock.name):
+        if stock in self.__stocks:
             return False
-        self.__stocks[stock.name] = stock
+        self.__stocks.add(stock)
         return True
 
     def remove_stock(self, stock_name=str) -> bool:
-        if self.__stocks.get(stock_name):
-            self.__stocks.pop(stock_name)
-            return True
+        for stock in self.stocks:
+            if stock.name == stock_name:
+                self.__stocks.remove(stock)
+                return True
         return False
 
     def single_stock(self, stock_name=str) -> Stock:
-        return self.__stocks.get(stock_name)
+        for stock in self.stocks:
+            if stock.name == stock_name:
+                return stock
+        return None
 
     def stock_shares_value(self, stock_name):
         stock = self.single_stock(stock_name)
@@ -78,3 +86,9 @@ class Wallet:
             return False
         stock.shares -= shares
         return True
+
+    def __hash__(self) -> int:
+        return hash(self.name)
+
+    def __eq__(self, o: object) -> bool:
+        return self.__hash__ == o.__hash__
